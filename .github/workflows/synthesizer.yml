@@ -1,0 +1,73 @@
+name: Grand Synthesizer
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  synthesize:
+    name: Synthesize Knowledge
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e .
+
+      - name: Detect lineage from branch
+        id: lineage
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          # Extract lineage from branch name: submission/<lineage>/<timestamp>
+          LINEAGE=$(echo "$BRANCH" | sed -n 's|submission/\([^/]*\)/.*|\1|p')
+          if [ -z "$LINEAGE" ]; then
+            LINEAGE="unknown"
+          fi
+          echo "name=$LINEAGE" >> $GITHUB_OUTPUT
+          echo "Detected lineage: $LINEAGE"
+
+      - name: Run Grand Synthesizer
+        env:
+          MERGED_PR: ${{ github.event.pull_request.number }}
+          LINEAGE: ${{ steps.lineage.outputs.name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          python3 -m synthesizer.run \
+            --pr "$MERGED_PR" \
+            --lineage "$LINEAGE" \
+            --author "$PR_AUTHOR"
+
+      - name: Commit knowledge base updates
+        run: |
+          git config user.name "Open Evolutions Bot"
+          git config user.email "bot@open-evolutions.dev"
+          git add knowledge/ lineages/
+          if git diff --cached --quiet; then
+            echo "No knowledge base changes to commit."
+          else
+            git commit -m "synthesizer: update knowledge base from PR #${{ github.event.pull_request.number }}"
+            git push
+          fi
+
+      - name: Check for hybridization opportunities
+        run: python3 -m synthesizer.hybridizer --check
+
+      - name: Check for stagnant lineages
+        run: python3 -m synthesizer.pruner --check

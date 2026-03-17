@@ -1,0 +1,113 @@
+name: Proof of Metric
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "lineages/**"
+      - "contribution_log.json"
+      - "contribution_distilled.json"
+
+jobs:
+  verify:
+    name: Verify Submission
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install elan (Lean 4 toolchain manager)
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Cache Mathlib
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            .lake
+          key: mathlib-${{ hashFiles('lean-toolchain', 'lakefile.lean') }}
+          restore-keys: mathlib-
+
+      - name: Fetch Lean dependencies
+        run: lake update
+
+      - name: Install Python dependencies
+        run: pip install -e .
+
+      - name: Detect changed Lean files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} -- '*.lean' | tr '\n' ' ')
+          echo "lean_files=$FILES" >> $GITHUB_OUTPUT
+          echo "Found Lean files: $FILES"
+
+      - name: Run metrics on each changed file
+        if: steps.changed.outputs.lean_files != ''
+        run: |
+          EXIT_CODE=0
+          for f in ${{ steps.changed.outputs.lean_files }}; do
+            echo "::group::Evaluating $f"
+            python3 -m core.metrics "$f" | tee "/tmp/metrics_$(basename $f).json"
+            # Check verification passed
+            V=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['verification'])" "/tmp/metrics_$(basename $f).json")
+            if [ "$V" != "1" ]; then
+              echo "::error file=$f::Verification FAILED — file does not compile"
+              EXIT_CODE=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $EXIT_CODE
+
+      - name: Check for sorry tags
+        run: |
+          if grep -rn 'sorry' lineages/ --include='*.lean'; then
+            echo "::error::Submission contains 'sorry' tags. All proofs must be complete."
+            exit 1
+          fi
+
+      - name: Validate contribution log
+        run: |
+          python3 -c "
+          import json, sys
+          log = json.load(open('contribution_log.json'))
+          if not log:
+              print('::error::contribution_log.json is empty')
+              sys.exit(1)
+          successes = sum(1 for e in log if e.get('success'))
+          print(f'Contribution log: {len(log)} mutations, {successes} compiled')
+          if successes == 0:
+              print('::error::No successful compilations in contribution log')
+              sys.exit(1)
+          "
+
+      - name: Post metrics summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const glob = require('glob');
+            const files = fs.readdirSync('/tmp').filter(f => f.startsWith('metrics_'));
+            let body = '## Proof-of-Metric Results\n\n';
+            body += '| File | Verification | Lemma Depth | Interestingness |\n';
+            body += '|------|-------------|-------------|------------------|\n';
+            for (const f of files) {
+              const data = JSON.parse(fs.readFileSync(`/tmp/${f}`, 'utf8'));
+              const v = data.verification === 1 ? '✅' : '❌';
+              body += `| ${f.replace('metrics_', '')} | ${v} | ${data.lemma_depth} | ${data.interestingness} |\n`;
+            }
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });

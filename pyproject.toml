@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "open-evolutions"
+version = "0.1.0"
+description = "A decentralized, open-source research engine that evolves solutions to complex problems."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+    "anthropic>=0.40",
+]
+
+[project.scripts]
+oe-cli = "oe_cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["oe_cli", "core", "synthesizer"]

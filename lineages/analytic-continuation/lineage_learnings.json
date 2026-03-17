@@ -1,0 +1,15 @@
+{
+  "lineage": "analytic-continuation",
+  "description": "Focuses on the functional equation and traditional complex analysis approaches to the Riemann Zeta function.",
+  "known_imports": [
+    "Mathlib.Analysis.SpecialFunctions.Complex.Log",
+    "Mathlib.Analysis.Analytic.Basic",
+    "Mathlib.Topology.Algebra.InfiniteSum.Basic"
+  ],
+  "heuristics": [
+    "Transforming zeta into the Xi function simplifies symmetry arguments."
+  ],
+  "dead_ends": [
+    "Basic induction on the critical strip fails at the boundary."
+  ]
+}

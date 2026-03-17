@@ -1,0 +1,11 @@
+{
+  "lineage": "computational-bounds",
+  "description": "Focuses on establishing zero-free regions through high-precision interval arithmetic and computational verification.",
+  "known_imports": [
+    "Mathlib.Analysis.SpecialFunctions.Complex.Log",
+    "Mathlib.Data.Real.Basic",
+    "Mathlib.Tactic.NormNum"
+  ],
+  "heuristics": [],
+  "dead_ends": []
+}

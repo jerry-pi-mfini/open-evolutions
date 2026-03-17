@@ -1,0 +1,33 @@
+{
+  "version": "0.1.0",
+  "challenge": "RZCS",
+  "global_truths": [],
+  "negative_constraints": [
+    {
+      "id": "nc-001",
+      "finding": "Attempting to use basic induction on the critical strip consistently fails at the boundary.",
+      "source": "induction_tests.lean",
+      "confidence": "high"
+    }
+  ],
+  "positive_heuristics": [
+    {
+      "id": "ph-001",
+      "finding": "Transforming the zeta function into the Xi function simplifies the symmetry proofs significantly.",
+      "estimated_improvement": "40%",
+      "confidence": "medium"
+    }
+  ],
+  "unexplored_frontiers": [
+    {
+      "id": "uf-001",
+      "description": "Topological methods applied to the critical strip",
+      "rationale": "No lineage has attempted topological arguments yet."
+    },
+    {
+      "id": "uf-002",
+      "description": "Probabilistic models of zero distribution",
+      "rationale": "Random matrix theory connections remain unexplored in formal verification."
+    }
+  ]
+}

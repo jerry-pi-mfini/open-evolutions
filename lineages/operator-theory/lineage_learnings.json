@@ -1,0 +1,11 @@
+{
+  "lineage": "operator-theory",
+  "description": "High-risk, high-reward approach treating zeros of the Riemann Zeta function as eigenvalues of operators.",
+  "known_imports": [
+    "Mathlib.Analysis.InnerProductSpace.Basic",
+    "Mathlib.Analysis.InnerProductSpace.Spectrum",
+    "Mathlib.LinearAlgebra.Eigenspace.Basic"
+  ],
+  "heuristics": [],
+  "dead_ends": []
+}
