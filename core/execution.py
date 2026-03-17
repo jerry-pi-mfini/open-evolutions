@@ -24,12 +24,12 @@ class ExecutionResult:
     fitness: FitnessScore
     duration_seconds: float
     lean_file: str
+    lean_content: str = ""
     stdout: str = ""
     stderr: str = ""
 
     def to_dict(self) -> dict:
-        d = asdict(self)
-        return d
+        return asdict(self)
 
 
 def _run_local(lean_content: str, workdir: Path) -> tuple[str, str, int]:
@@ -99,7 +99,17 @@ def execute_mutation(
                 str(p) for p in (PROJECT_ROOT / "lineages").iterdir() if p.is_dir()
             ]
 
-        fitness = evaluate(lean_file, lineage_dirs)
+        # Pass the compilation result to avoid re-compiling from the wrong directory
+        # Lean outputs errors to stdout, so combine both streams
+        error_output = (stdout + "\n" + stderr).strip() if returncode != 0 else ""
+        compilation_result = (returncode == 0, error_output)
+        fitness = evaluate(
+            lean_file,
+            lineage_dirs,
+            project_root=PROJECT_ROOT,
+            strict_sorry=False,  # exploration loop allows sorry
+            compilation_result=compilation_result,
+        )
         duration = time.time() - start_time
 
         return ExecutionResult(
@@ -107,6 +117,7 @@ def execute_mutation(
             fitness=fitness,
             duration_seconds=round(duration, 2),
             lean_file=str(lean_file),
+            lean_content=lean_content,
             stdout=stdout,
             stderr=stderr,
         )
@@ -121,6 +132,7 @@ def execute_mutation(
             ),
             duration_seconds=round(duration, 2),
             lean_file=str(workdir / "Mutation.lean"),
+            lean_content=lean_content,
             stderr="Execution timed out after 600 seconds.",
         )
     finally:
@@ -141,6 +153,7 @@ def log_result(result: ExecutionResult, log_path: Path) -> None:
         "fitness": result.fitness.to_dict(),
         "duration_seconds": result.duration_seconds,
         "lean_file": result.lean_file,
+        "lean_content": result.lean_content,
     })
 
     log_path.write_text(json.dumps(entries, indent=2) + "\n")

@@ -6,8 +6,11 @@ Handles environment setup, agent-driven evolution loops, and PR submission.
 """
 
 import typer
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
+
+load_dotenv()
 
 app = typer.Typer(
     name="oe-cli",

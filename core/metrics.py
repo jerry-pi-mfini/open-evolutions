@@ -32,18 +32,33 @@ class FitnessScore:
         return asdict(self)
 
 
-def check_verification(lean_file: Path) -> tuple[bool, str]:
-    """Run `lake build` and check if the Lean 4 file compiles without errors."""
+def find_project_root(start: Path) -> Path | None:
+    """Walk up from start to find the directory containing lakefile.lean."""
+    current = start.resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / "lakefile.lean").exists() or (parent / "lakefile.toml").exists():
+            return parent
+    return None
+
+
+def check_verification(lean_file: Path, project_root: Path | None = None) -> tuple[bool, str]:
+    """Compile a Lean 4 file using the project's Lake environment."""
+    if project_root is None:
+        project_root = find_project_root(lean_file)
+    if project_root is None:
+        return False, "No lakefile.lean found in any parent directory."
+
     try:
         result = subprocess.run(
-            ["lake", "build"],
-            cwd=lean_file.parent,
+            ["lake", "env", "lean", str(lean_file.resolve())],
+            cwd=project_root,
             capture_output=True,
             text=True,
             timeout=600,
         )
         success = result.returncode == 0
-        error = result.stderr if not success else ""
+        # Lean outputs errors to stdout, so combine both streams
+        error = (result.stdout + "\n" + result.stderr).strip() if not success else ""
         return success, error
     except FileNotFoundError:
         return False, "Lean 4 / Lake toolchain not found. Run `prepare.py` first."
@@ -71,34 +86,62 @@ def count_lemma_depth(lean_file: Path) -> int:
     return imports + references
 
 
+def _import_category(imp: str) -> str:
+    """Extract the top 3 segments of an import path for fuzzy matching.
+
+    E.g. 'Mathlib.Analysis.SpecialFunctions.Complex.Log' -> 'Mathlib.Analysis.SpecialFunctions'
+    """
+    parts = imp.strip().split(".")
+    return ".".join(parts[:3])
+
+
 def compute_interestingness(
     lean_file: Path, existing_lineages: list[str]
 ) -> float:
     """
-    Score novelty based on which Mathlib modules are used.
-    If the submission imports modules not seen in any existing lineage, it scores higher.
+    Score novelty based on which Mathlib module categories are used.
+    Compares at the top-3-segment level to avoid false novelty from
+    sub-module variations within the same area.
     """
     content = lean_file.read_text()
     imports = set(re.findall(r"^import\s+(.+)$", content, re.MULTILINE))
 
-    known_imports: set[str] = set()
+    if not imports:
+        return 0.0
+
+    known_categories: set[str] = set()
     for lineage_dir in existing_lineages:
         lineage_path = Path(lineage_dir)
         if lineage_path.exists():
             learnings_file = lineage_path / "lineage_learnings.json"
             if learnings_file.exists():
                 data = json.loads(learnings_file.read_text())
-                known_imports.update(data.get("known_imports", []))
+                for ki in data.get("known_imports", []):
+                    known_categories.add(_import_category(ki))
 
-    if not imports:
-        return 0.0
-
-    novel = imports - known_imports
-    return len(novel) / len(imports)
+    submission_categories = {_import_category(imp) for imp in imports}
+    novel = submission_categories - known_categories
+    return len(novel) / len(submission_categories)
 
 
-def evaluate(lean_file: Path, lineage_dirs: list[str] | None = None) -> FitnessScore:
-    """Full evaluation pipeline for a Lean 4 submission."""
+def evaluate(
+    lean_file: Path,
+    lineage_dirs: list[str] | None = None,
+    project_root: Path | None = None,
+    strict_sorry: bool = True,
+    compilation_result: tuple[bool, str] | None = None,
+) -> FitnessScore:
+    """Full evaluation pipeline for a Lean 4 submission.
+
+    Args:
+        lean_file: Path to the Lean 4 file to evaluate.
+        lineage_dirs: Lineage directories for interestingness scoring.
+        project_root: Project root containing lakefile.lean.
+        strict_sorry: If True, reject files containing `sorry`. Set to False
+            during exploration loops where sorry is acceptable.
+        compilation_result: If provided, skip compilation and use this (success, error)
+            tuple directly. Avoids double-compiling when the caller already ran the build.
+    """
     lean_path = Path(lean_file)
 
     if not lean_path.exists():
@@ -107,16 +150,20 @@ def evaluate(lean_file: Path, lineage_dirs: list[str] | None = None) -> FitnessS
             error_message=f"File not found: {lean_path}",
         )
 
-    # Check for sorry
-    sorry_clean, sorry_locations = check_no_sorry(lean_path)
-    if not sorry_clean:
-        return FitnessScore(
-            verification=0, lemma_depth=0, interestingness=0.0,
-            error_message=f"Contains `sorry` at: {', '.join(sorry_locations)}",
-        )
+    # Check for sorry (strict mode for CI, relaxed for exploration)
+    if strict_sorry:
+        sorry_clean, sorry_locations = check_no_sorry(lean_path)
+        if not sorry_clean:
+            return FitnessScore(
+                verification=0, lemma_depth=0, interestingness=0.0,
+                error_message=f"Contains `sorry` at: {', '.join(sorry_locations)}",
+            )
 
-    # Check compilation
-    compiles, error = check_verification(lean_path)
+    # Check compilation (use provided result or run fresh)
+    if compilation_result is not None:
+        compiles, error = compilation_result
+    else:
+        compiles, error = check_verification(lean_path, project_root)
 
     # Compute metrics
     depth = count_lemma_depth(lean_path) if compiles else 0

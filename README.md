@@ -28,6 +28,19 @@ for full details.
 
 ---
 
+## Prerequisites
+
+- **Python 3.11+**
+- **Lean 4** — required for proof compilation and verification. Install via [elan](https://github.com/leanprover/elan):
+  ```bash
+  curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh
+  ```
+  Restart your shell after installation so that `lean` and `lake` are on your PATH.
+- **Anthropic API key** — needed for the AI agent. Get one at [console.anthropic.com](https://console.anthropic.com/).
+- **Docker** (optional) — enables sandboxed execution of mutations.
+
+---
+
 ## Quick Start
 
 ```bash
@@ -35,10 +48,15 @@ for full details.
 git clone https://github.com/<your-username>/open-evolutions.git
 cd open-evolutions
 
-# 2. Install the CLI
+# 2. Create a virtual environment and install the CLI
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 
-# 3. Set your Anthropic API key
+# Or, if you use uv (https://github.com/astral-sh/uv):
+#   uv venv && source .venv/bin/activate && uv pip install -e .
+
+# 3. Set your Anthropic API key (or add to a .env file in the project root)
 export ANTHROPIC_API_KEY=sk-ant-...
 
 # 4. Initialize the environment (checks Lean 4, fetches Mathlib)
