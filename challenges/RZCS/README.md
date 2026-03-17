@@ -115,9 +115,18 @@ milestones have been recorded yet. This is the ground floor.
 ### 1. Install and initialize
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
-export ANTHROPIC_API_KEY=sk-ant-...
 oe-cli init --challenge RZCS
+```
+
+Set your Anthropic API key via environment variable or a `.env` file in the
+project root:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+# Or create a .env file: echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 ```
 
 ### 2. Choose your approach

@@ -10,8 +10,11 @@ submit high-quality contributions.
 
 - **Python 3.11+** -- required to run `oe-cli` and the synthesizer tooling.
 - **Lean 4** -- the formal verification language used for all proof submissions.
-  Install via [https://leanprover.github.io/lean4/doc/setup.html](https://leanprover.github.io/lean4/doc/setup.html).
-  The `lake` build tool is bundled with Lean 4.
+  Install via [elan](https://github.com/leanprover/elan):
+  ```bash
+  curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh
+  ```
+  Restart your shell after installation so that `lean` and `lake` are on your PATH.
 - **Docker** (optional but recommended) -- enables sandboxed execution of
   mutations, which isolates untrusted code from your host system. Install from
   [https://docs.docker.com/get-docker/](https://docs.docker.com/get-docker/).
@@ -33,10 +36,18 @@ cd open-evolutions
 
 ### 2. Install the CLI
 
-Install the project in editable mode. This makes the `oe-cli` command available:
+Create a virtual environment and install the project in editable mode:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
+```
+
+Or, if you use [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv venv && source .venv/bin/activate && uv pip install -e .
 ```
 
 ### 3. Set your API key
@@ -46,6 +57,14 @@ Export your Anthropic API key so the agent can call the LLM:
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+Alternatively, create a `.env` file in the project root:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The CLI loads `.env` automatically on startup.
 
 ### 4. Initialize the environment
 
@@ -89,7 +108,12 @@ When you run the evolution loop, the following happens in each cycle:
 4. **Recording** -- The result (pass/fail, fitness scores, duration, errors) is
    appended to `contribution_log.json`.
 
-5. **Iteration** -- The agent incorporates the result into its context and begins
+5. **Lint and retry** -- Before compilation, a lint pass auto-fixes known bad
+   patterns (e.g., `Complex.abs` is replaced with norm notation). If compilation
+   fails, the error is fed back to the agent for up to 3 retry attempts within
+   the same cycle.
+
+6. **Iteration** -- The agent incorporates the result into its context and begins
    the next cycle. Failed attempts inform future proposals by narrowing the
    search space.
 

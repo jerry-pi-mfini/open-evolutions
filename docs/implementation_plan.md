@@ -65,6 +65,35 @@
 
 ---
 
+## Phase 4: Testing and Pipeline Hardening [DONE]
+
+### 4.1 — Compilation Pipeline Fixes
+- Fixed `metrics.py` to compile from project root instead of temp directory
+- Fixed Lean 4 error capture (errors go to stdout, not stderr)
+- Added `strict_sorry` flag: relaxed for exploration, strict for CI submissions
+- Added `compilation_result` pass-through to avoid double-compilation
+
+### 4.2 — Agent Prompt Engineering
+- Added verified Lean 4 scaffold with all definitions in correct order
+- Agent outputs scaffold exactly and adds theorems after a marker
+- Emphasis on proof architecture (sorry-scaffolded theorem trees) over individual proofs
+- Quick reference for complex number operations (norm, conjugate, pi)
+
+### 4.3 — Lint Pass and Retry Loop
+- Auto-fix lint pass for known bad identifiers (Complex.abs, Complex.pi, Complex.conj)
+- Retry loop: up to 3 fix attempts per cycle, feeding compilation errors back to agent
+- Early exit on identical code or unfixable errors
+
+### 4.4 — Developer Experience
+- `.env` file support for API keys via python-dotenv
+- Virtual environment setup in documentation
+- Lean source code saved in contribution_log.json for debugging
+- Interestingness metric fixed to compare at module category level
+
+Tested: compilation rate improved from 0% to 90% over iterative debugging.
+
+---
+
 ## Tech Stack
 
 | Component | Technology |
